@@ -1,5 +1,7 @@
 ﻿using System;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace EFAssets
@@ -55,21 +57,6 @@ namespace EFAssets
                     break;
             }
 
-            //if (command == ConsoleKey.Enter)
-            //    MainMenu();
-
-            //if(command == ConsoleKey.A)
-            //    AssetMenu();
-            //if (command == ConsoleKey.B)
-            //    CategoryMenu();
-            //if (command == ConsoleKey.C)
-            //    OfficeMenu();
-            //if (command == ConsoleKey.D)
-            //    CurrencyMenu();
-            //if (command == ConsoleKey.E)
-            //    ReportMenu();
-            //if (command == ConsoleKey.Q)
-            //    return;
         }
 
         private void AssetMenu()
@@ -140,15 +127,40 @@ namespace EFAssets
             Console.WriteLine("a) Add new office");
             Console.WriteLine("b) Update existing office");
             Console.WriteLine("c) Delete existing office");
+            Console.WriteLine("d) Show existing offices");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
 
-            if (command == ConsoleKey.Enter)
-                OfficeMenu();
+            // Using switch eliminates all other keypresses as invalid
+            switch (command)
+            {
+                case ConsoleKey.A:
+                    PageAddNewOffice();
+                    break;
+                case ConsoleKey.B:
+                    PageUpdateOffice();
+                    break;
+                case ConsoleKey.C:
+                    PageDeleteOffice();
+                    break;
+                case ConsoleKey.D:
+                    {
+                        Header("Existing offices");
+                        ShowOffices(0);
+                        Console.ReadKey();
+                        OfficeMenu();
+                        break;
+                    }
 
-            if (command == ConsoleKey.Q)
-                MainMenu();
+                case ConsoleKey.Q:
+                    MainMenu();
+                    break;
+
+                default:
+                    OfficeMenu();
+                    break;
+            }
         }
 
         private void CurrencyMenu()
@@ -212,6 +224,198 @@ namespace EFAssets
 
             if (command == ConsoleKey.Q)
                 MainMenu();
+        }
+
+        private void PageAddNewOffice()
+        {
+            Header("Add new office");
+            ShowCurrencies();
+            ShowOffices(1);
+            
+            // Check if any currencies exist in currency table. Offices MUST have a currency.
+            // If no currency exist, redirect user to Currency menu
+            if( !_context.Currency.Any())
+            {
+                WriteLine("No currencies exist.. Office must have a currency.");
+                Write("Press any key to go to Currency menu.");
+                Console.ReadKey();
+                CurrencyMenu();
+            }
+
+           
+            Write("Office name: ");
+            string newName = Console.ReadLine();
+            
+
+            Write("Country (ex USA, GER, SWE): ");
+            string newCountry = Console.ReadLine();
+            
+
+            Write("Select currencyID from above: ");
+            int currencyId = 0;
+            try
+            {
+                currencyId = int.Parse(Console.ReadLine());
+
+                // Check if selected CurrencyID exists in table
+                // Otherwise start again
+                var chkCurrencyId = _context.Currency.Find(currencyId);
+                if (chkCurrencyId == null)
+                {
+                    Write("Only existing currency IDs are valid..");
+                    Console.ReadKey();
+                    OfficeMenu();
+                    return;
+                }
+            }
+            catch
+            {
+                Write("Only numerical values ...");
+                Console.ReadKey();
+                OfficeMenu();
+                return;
+            }
+
+            // All done, load object with user entries
+            var office = new Office();
+            office.OfficeName = newName;
+            office.OfficeCountry = newCountry;
+            office.CurrencyId = currencyId;
+
+            _context.Offices.Add(office);
+            _context.SaveChanges();
+
+            Write("Office " + office.OfficeName + " " + office.OfficeCountry + " added...");
+            Console.ReadKey();
+            OfficeMenu();
+        }
+
+        private void PageDeleteOffice()
+        {
+            Header("Delete existing office");
+            ShowOffices(0);
+
+            Write("Which office do you want to delete (ID= 0 to abort): ");
+            int officeId = 0;
+            try
+            {
+                officeId = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                OfficeMenu();
+                return;
+            }
+
+            // User aborts deletion with ID = 0
+            if (officeId == 0)
+            {
+                OfficeMenu();
+                return;
+            }
+            // Check if officeId exists in database
+            var office = _context.Offices.Find(officeId);
+            if(office == null)
+            {
+                Write("That office does not exist...");
+                OfficeMenu();
+                return;
+            }
+            else
+            {
+                _context.Offices.Remove(office);
+                _context.SaveChanges();
+
+                Write("Office " + office.OfficeName + ", " + office.OfficeCountry + " deleted...");
+                Console.ReadKey();
+            }
+            OfficeMenu();
+        }
+
+        private void PageUpdateOffice()
+        {
+            Header("Update existing office");
+            ShowOffices(0);
+            ShowCurrencies();
+            int officeId;
+
+            Write("Which office do you want to update (ID = 0 to abort): ");
+            try
+            {
+                officeId = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                OfficeMenu();
+                return;
+            }
+
+            // User aborts update with ID = 0
+            if (officeId == 0)
+            {
+                OfficeMenu();
+                return;
+            }
+            // Check if officeId exists in database
+            var office = _context.Offices.Find(officeId);
+            var curr = _context.Currency.Find(office.CurrencyId);
+            if (office == null)
+            {
+                Write("That office does not exist...");
+                OfficeMenu();
+                return;
+            }
+            string currName = curr.CurrencyName;
+            WriteLine("Current office name: " + office.OfficeName);
+            Write("Enter new name: ");
+            string newName = Console.ReadLine();
+            WriteLine("Current country is " + office.OfficeCountry);
+            Write("Enter new country (ex USA, GER, SWE): ");
+            string newCountry = Console.ReadLine();
+            WriteLine("Current currency is: " + office.CurrencyId + " " + currName);
+            Write("Enter new currency ID: ");
+            int newCurrencyId;
+            try
+            {
+                newCurrencyId = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                OfficeMenu();
+                return;
+            }
+
+            // All done load user input for update
+            office.OfficeName = newName;
+            office.OfficeCountry = newCountry;
+            office.CurrencyId = newCurrencyId;
+
+            _context.Offices.Update(office);
+            _context.SaveChanges();
+
+            Write("Office " + office.OfficeName + ", " + office.OfficeCountry + " updated...");
+            Console.ReadKey();
+            OfficeMenu();
+            return;
+            
+        }
+
+        private void ShowOffices(int showHeader)
+        {
+            if (showHeader == 1)
+                WriteLine("Existing offices:");
+            WriteLine("id".PadRight(5) + "Name".PadRight(20) + "Country".PadRight(20) + "Currency".PadRight(10));
+            foreach (var x in _context.Offices)
+            {
+                
+                WriteLineBlue(x.OfficeId.ToString().PadRight(5) + x.OfficeName.ToString().PadRight(20) + x.OfficeCountry.ToString().PadRight(20) + x.CurrencyId.ToString().PadRight(10));
+            }
         }
 
         private void PageAddNewCurrency()
@@ -288,8 +492,10 @@ namespace EFAssets
             Header("Delete currency");
             ShowCurrencies();
 
-            Write("Which currency do you want to delete? ");
+            Write("Which currency do you want to delete? (0) to abort ");
             int currencyId = int.Parse(Console.ReadLine());
+            if (currencyId == 0)
+                return;
 
             var currency = _context.Currency.Find(currencyId);
             _context.Currency.Remove(currency);
@@ -302,6 +508,7 @@ namespace EFAssets
 
         private void ShowCurrencies()
         {
+            WriteLine("Existing currencies:");
             WriteLine("id".PadRight(5) + "Name".PadRight(20) + "Exchange rate".PadRight(20));
             foreach(var x in _context.Currency)
             {
