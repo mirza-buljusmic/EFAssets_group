@@ -174,7 +174,7 @@ namespace EFAssets
                     PageUpdateCurrency();
                     break;
                 case ConsoleKey.C:
-                    OfficeMenu();
+                    PageDeleteCurrency();
                     break;
                 case ConsoleKey.D:
                     {
@@ -184,10 +184,7 @@ namespace EFAssets
                         CurrencyMenu();
                         break;
                     }
-                case ConsoleKey.E:
-                    ReportMenu();
-                    break;
-
+               
                 case ConsoleKey.Q:
                     MainMenu();
                     break;
@@ -237,7 +234,7 @@ namespace EFAssets
             {
 
                 Write("Numerical values only...");
-                Console.ReadLine();
+                Console.ReadKey();
                 PageAddNewCurrency();
             }
             currency.CurrencyToUSD = xRate;
@@ -245,7 +242,7 @@ namespace EFAssets
             _context.Currency.Add(currency);
             _context.SaveChanges();
 
-            Write("Currency added...");
+            Write("Currency " + currency.CurrencyName + " added...");
             Console.ReadKey();
             CurrencyMenu();
         }
@@ -265,11 +262,42 @@ namespace EFAssets
 
             WriteLine("Old exchange rate to USD: " + currency.CurrencyToUSD.ToString());
             Write("New exchange rate: ");
-            double newRate = double.Parse(Console.ReadLine());
+            double newRate = 0;
+            try
+            {
+                newRate = double.Parse(Console.ReadLine());
+            }
+            catch (Exception)
+            {
+                Write("Numerical values only...");
+                Console.ReadKey();
+                PageUpdateCurrency();
+            }
             currency.CurrencyToUSD = newRate;
 
             _context.Currency.Update(currency);
             _context.SaveChanges();
+
+            Write("Currency " + currency.CurrencyName + " updated");
+            Console.ReadKey();
+            CurrencyMenu();
+        }
+
+        private void PageDeleteCurrency()
+        {
+            Header("Delete currency");
+            ShowCurrencies();
+
+            Write("Which currency do you want to delete? ");
+            int currencyId = int.Parse(Console.ReadLine());
+
+            var currency = _context.Currency.Find(currencyId);
+            _context.Currency.Remove(currency);
+            _context.SaveChanges();
+
+            Write("Currency " + currency.CurrencyName + " deleted...");
+            Console.ReadKey();
+            CurrencyMenu();
         }
 
         private void ShowCurrencies()
