@@ -4,8 +4,11 @@ using System.Text;
 
 namespace EFAssets
 {
+    
     public class App
     {
+        static AssetContext _context = new AssetContext();
+
         public void Run()
         {
             MainMenu();
@@ -156,15 +159,43 @@ namespace EFAssets
             Console.WriteLine("a) Add new currency");
             Console.WriteLine("b) Update existing currency");
             Console.WriteLine("c) Delete existing currency");
+            Console.WriteLine("d) Show existing currencies");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
 
-            if (command == ConsoleKey.Enter)
-                CurrencyMenu();
+            // Using switch eliminates all other keypresses as invalid
+            switch (command)
+            {
+                case ConsoleKey.A:
+                    PageAddNewCurrency();
+                    break;
+                case ConsoleKey.B:
+                    PageUpdateCurrency();
+                    break;
+                case ConsoleKey.C:
+                    OfficeMenu();
+                    break;
+                case ConsoleKey.D:
+                    {
+                        Header("Existing currencies");
+                        ShowCurrencies();
+                        Console.ReadKey();
+                        CurrencyMenu();
+                        break;
+                    }
+                case ConsoleKey.E:
+                    ReportMenu();
+                    break;
 
-            if (command == ConsoleKey.Q)
-                MainMenu();
+                case ConsoleKey.Q:
+                    MainMenu();
+                    break;
+
+                default:
+                    CurrencyMenu();
+                    break;
+            }
         }
 
         private void ReportMenu()
@@ -186,6 +217,70 @@ namespace EFAssets
                 MainMenu();
         }
 
+        private void PageAddNewCurrency()
+        {
+            Header("Add new currency");
+            ShowCurrencies();
+
+            var currency =  new Currency();
+            Write("Currency name: ");
+            string curName = Console.ReadLine();
+            currency.CurrencyName = curName;
+
+            double xRate = 0;
+            Write("Exchange rate vs USD: ");
+            try
+            {
+                xRate = double.Parse(Console.ReadLine());
+            }
+            catch (Exception)
+            {
+
+                Write("Numerical values only...");
+                Console.ReadLine();
+                PageAddNewCurrency();
+            }
+            currency.CurrencyToUSD = xRate;
+
+            _context.Currency.Add(currency);
+            _context.SaveChanges();
+
+            Write("Currency added...");
+            Console.ReadKey();
+            CurrencyMenu();
+        }
+
+        private void PageUpdateCurrency()
+        {
+            Header("Update currency");
+            ShowCurrencies();
+            Write("Which currency do you want to update? ");
+            int currencyId = int.Parse(Console.ReadLine());
+            var currency = _context.Currency.Find(currencyId);
+
+            WriteLine("Current name: " + currency.CurrencyName);
+            Write("New name: ");
+            string newName = Console.ReadLine();
+            currency.CurrencyName = newName;
+
+            WriteLine("Old exchange rate to USD: " + currency.CurrencyToUSD.ToString());
+            Write("New exchange rate: ");
+            double newRate = double.Parse(Console.ReadLine());
+            currency.CurrencyToUSD = newRate;
+
+            _context.Currency.Update(currency);
+            _context.SaveChanges();
+        }
+
+        private void ShowCurrencies()
+        {
+            WriteLine("id".PadRight(5) + "Name".PadRight(20) + "Exchange rate".PadRight(20));
+            foreach(var x in _context.Currency)
+            {
+                WriteLineBlue(x.CurrencyId.ToString().PadRight(5) + x.CurrencyName.ToString().PadRight(20) + x.CurrencyToUSD.ToString().PadRight(20));
+            }
+        }
+
         private void Header(string text)
         {
             Console.Clear();
@@ -198,6 +293,12 @@ namespace EFAssets
         private void WriteLine(string text)
         {
             Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(text);
+        }
+
+        private void WriteLineBlue(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
             Console.WriteLine(text);
         }
 
