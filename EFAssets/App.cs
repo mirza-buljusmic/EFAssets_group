@@ -67,6 +67,7 @@ namespace EFAssets
             Console.WriteLine("a) Add new asset");
             Console.WriteLine("b) Update existing asset");
             Console.WriteLine("c) Delete existing asset");
+            Console.WriteLine("d) Show existing assets");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
@@ -75,7 +76,7 @@ namespace EFAssets
             switch (command)
             {
                 case ConsoleKey.A:
-                    AssetMenu();
+                    PageAddNewAsset();
                     break;
                 case ConsoleKey.B:
                     CategoryMenu();
@@ -108,15 +109,39 @@ namespace EFAssets
             Console.WriteLine("a) Add new category");
             Console.WriteLine("b) Update existing category");
             Console.WriteLine("c) Delete existing category");
+            Console.WriteLine("d) Show existing categories");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
+            // Using switch eliminates all other keypresses as invalid
+            switch (command)
+            {
+                case ConsoleKey.A:
+                    PageAddNewCategory();
+                    break;
+                case ConsoleKey.B:
+                    PageUpdateCategory();
+                    break;
+                case ConsoleKey.C:
+                    PageDeleteCategory();
+                    break;
+                case ConsoleKey.D:
+                    {
+                        Header("Existing categories");
+                        ShowCategories(0);
+                        Console.ReadKey();
+                        CategoryMenu();
+                        break;
+                    }
 
-            if (command == ConsoleKey.Enter)
-                CategoryMenu();
+                case ConsoleKey.Q:
+                    MainMenu();
+                    break;
 
-            if (command == ConsoleKey.Q)
-                MainMenu();
+                default:
+                    OfficeMenu();
+                    break;
+            }
         }
 
         private void OfficeMenu()
@@ -224,6 +249,247 @@ namespace EFAssets
 
             if (command == ConsoleKey.Q)
                 MainMenu();
+        }
+
+        private void PageAddNewAsset()
+        {
+            // Check if any categories exist in category table. Assets MUST have a category.
+            // If no category exist, redirect user to Category menu to first create categories
+            if (!_context.Category.Any())
+            {
+                WriteLine("No categories exist.. Asset must have a category.");
+                Write("Press any key to go to Category menu.");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+            else
+            {
+                Header("Add a new asset");
+                ShowAssets(0);
+            }
+
+        }
+
+        private void ShowAssets(int displayHeader)
+        {
+            if (displayHeader == 1)
+                WriteLine("Existing assets:");
+            WriteLine("id".PadRight(5) + "Name".PadRight(20) + "Country".PadRight(20) + "Currency".PadRight(10));
+            foreach (var x in _context.Assets)
+            {
+
+                WriteLineBlue(x.AssetId.ToString().PadRight(5) + x.AssetName.ToString().PadRight(25) + x.AssetPrice.ToString().PadRight(20));
+            }
+        }
+
+        /// <summary>
+        /// Add new Category with LifeSpan in months for assets
+        /// </summary>
+        private void PageAddNewCategory()
+        {
+            Header("Add new category");
+            // If no prevous categories in database, notify user
+            if (!_context.Category.Any())
+            {
+                WriteLine("No prevous categories exist...");
+            }
+            else
+            {
+                ShowCategories(1);
+            }
+
+            var newCategory = new Category();
+
+            Write("New category name: ");
+            string newCatName = Console.ReadLine();
+
+            Write("Lifespan of assets in category (months): ");
+            int newLifespan;
+            try
+            {
+                newLifespan = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Numerical values only...");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+
+            // All done load user input for creation
+            newCategory.CategoryName = newCatName;
+            newCategory.CategoryEOLMonths = newLifespan;
+
+            _context.Category.Add(newCategory);
+            _context.SaveChanges();
+
+            Write("New category: " + newCategory.CategoryName + " with asset lifespan of " + newLifespan + " months added.");
+            Console.ReadKey();
+            CategoryMenu();
+        }
+
+        private void PageUpdateCategory()
+        {
+            Header("Update existing category");
+            ShowCategories(1);
+
+            Write("Which category would like to update? (ID = 0 to abort): ");
+            int categoryID;
+            try
+            {
+                categoryID = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Numerical values only...");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+
+            // User aborts operation
+            if(categoryID == 0 )
+            {
+                CategoryMenu();
+                return;
+            }
+
+            // Check if selected category exists in database
+            var category = _context.Category.Find(categoryID);
+            if (category == null)
+            {
+                Write("That category does not exist...");
+                CategoryMenu();
+                return;
+            }
+            else
+            {
+                WriteLine("Existing category name is: " + category.CategoryName);
+                Write("Enter new name: ");
+                string newName = Console.ReadLine();
+
+                WriteLine("Existing lifespan of attached assets (in months) is: " + category.CategoryEOLMonths);
+                Write("Enter new lifespan of assets in category (months)");
+                int newLifespan;
+                try
+                {
+                    newLifespan = int.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    WriteLine("Numerical values only...");
+                    Console.ReadKey();
+                    CategoryMenu();
+                    return;
+                }
+
+                // ** Should implement functionality here to check if LifeSpan is changed
+                // ** and calculate new endOfLife for attached assets
+
+
+                // All done load user input for update to database
+                category.CategoryName = newName;
+                category.CategoryEOLMonths = newLifespan;
+
+                _context.Category.Update(category);
+                _context.SaveChanges();
+
+                Write("Category is updaed...");
+                Console.ReadKey();
+                CategoryMenu();
+            }
+        }
+
+
+        /// <summary>
+        /// Deletes a category
+        /// **Note: Categories will not be deleted if any assets are attached to it...
+        /// </summary>
+        private void PageDeleteCategory()
+        {
+            // *** MUST check if any assets are connected to category before deletion
+            // *** Category cannot be deleted if ANY assets are connected.
+
+            Header("Delete existing category");
+            ShowCategories(1);
+
+            Write("Which category would you like to delete? (ID = 0 to abort): ");
+            int categoryID;
+            try
+            {
+                categoryID = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Numerical values only...");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+
+            // User aborts operation
+            if (categoryID == 0)
+            {
+                CategoryMenu();
+                return;
+            }
+
+            // Check if selected category exists in database
+            var category = _context.Category.Find(categoryID);
+            var asset = _context.Assets.Find(category.CategoryId);
+            if (category == null)
+            {
+                Write("That category does not exist...");
+                CategoryMenu();
+                return;
+            }
+
+            // Check if any assets are connected to the category
+            if(asset != null)
+            {
+                WriteLineRed(" ** There are assets attached to the category: " + category.CategoryName);
+                WriteLineRed(" Update assets and attach them to a different category,");
+                WriteLineRed(" before trying to delete this category.");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+            else
+            {
+                _context.Category.Remove(category);
+                _context.SaveChanges();
+
+                Write("Category: " + category.CategoryName + " is deleted");
+                Console.ReadKey();
+                CategoryMenu();
+                return;
+            }
+
+        }
+
+        private void ShowCategories(int displayHeader)
+        {
+            // If category table empty, don't bother trying to read from db
+            if (!_context.Category.Any())
+            {
+                WriteLine("No prevous categories exist... Nothing to show..");
+                Console.ReadKey();
+                //CategoryMenu();
+                //return;
+            }
+            else
+            {
+                // To avoid unnecessary info
+                if (displayHeader == 1)
+                    WriteLine("Existing categories:");
+                WriteLine("ID".PadRight(5) + "Name".PadRight(25) + "Lifespan (months)".PadRight(20));
+                foreach (var x in _context.Category)
+                {
+                    WriteLineBlue(x.CategoryId.ToString().PadRight(5) + x.CategoryName.ToString().PadRight(25) + x.CategoryEOLMonths.ToString().PadRight(20));
+                }
+            }
         }
 
         private void PageAddNewOffice()
@@ -537,6 +803,11 @@ namespace EFAssets
             Console.WriteLine(text);
         }
 
+        private void WriteLineRed(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(text);
+        }
         private void Write(string text)
         {
             Console.ForegroundColor = ConsoleColor.White;
