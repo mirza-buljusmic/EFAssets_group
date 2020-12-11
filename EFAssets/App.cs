@@ -79,16 +79,16 @@ namespace EFAssets
                     PageAddNewAsset();
                     break;
                 case ConsoleKey.B:
-                    CategoryMenu();
+                    PageUpdateAsset();
                     break;
                 case ConsoleKey.C:
-                    OfficeMenu();
+                    PageDeleteAsset();
                     break;
                 case ConsoleKey.D:
-                    CurrencyMenu();
-                    break;
-                case ConsoleKey.E:
-                    ReportMenu();
+                    Header("Existing assets");
+                    ShowAssets(0);
+                    Console.ReadKey();
+                    AssetMenu();
                     break;
 
                 case ConsoleKey.Q:
@@ -253,6 +253,9 @@ namespace EFAssets
 
         private void PageAddNewAsset()
         {
+            // Date calculations
+            var DF = new DateFunctions();
+
             // Check if any categories exist in category table. Assets MUST have a category.
             // If no category exist, redirect user to Category menu to first create categories
             if (!_context.Category.Any())
@@ -266,8 +269,161 @@ namespace EFAssets
             else
             {
                 Header("Add a new asset");
-                ShowAssets(0);
+                ShowCategories(1);
+                ShowOffices(1);
+                ShowAssets(1);
+
+                var newAsset = new Asset();
+
+                Write("Asset name: ");
+                string newAssetName = Console.ReadLine();
+
+                Write("Purchase date (yyyy-mm-dd): ");
+                DateTime newPurchaseDate;
+                try
+                {
+                    newPurchaseDate = DateTime.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    WriteLine("Invalid date format, should be yyyy-mm-dd...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+                Write("Purchase price in USD: ");
+                double newPurchasePrice;
+                try
+                {
+                    newPurchasePrice = double.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    WriteLine("Must be numerical value...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                Write("Select category for asset: ");
+                int newCategoryID;
+                try
+                {
+                    newCategoryID = int.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    WriteLine("Must be numeric...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                Write("Select office asset belongs to: ");
+                int newOfficeID;
+                try
+                {
+                    newOfficeID = int.Parse(Console.ReadLine());
+                }
+                catch
+                {
+
+                    Write("Numerical values only...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                // Find the category to determine LifeSpan of asset
+                var category = _context.Category.Find(newCategoryID);
+
+                // Find the officeName
+                var office = _context.Offices.Find(newOfficeID);
+
+                // Calculate ExpirationDate and a WarningDate
+                DateTime newExpirationDate = DateFunctions.CalculateEolDate(newPurchaseDate, category.CategoryEOLMonths);
+                DateTime newWarningDate = DateFunctions.CalculateWarningDate(newPurchaseDate, category.CategoryEOLMonths - 3);
+
+                // All done, load user input for creation of asset
+                newAsset.AssetName = newAssetName;
+                newAsset.AssetPrice = newPurchasePrice;
+                newAsset.AssetPurchaseDate = newPurchaseDate;
+                newAsset.AssetExpirationDate = newExpirationDate;
+                newAsset.AssetWarningDate = newWarningDate;
+                newAsset.CategoryId = newCategoryID;
+                newAsset.OfficeId = newOfficeID;
+                // We assume all assets are active, for convinience...
+                newAsset.AssetActive = true;
+
+                // Do it!
+                _context.Assets.Add(newAsset);
+                _context.SaveChanges();
+
+                Write("Asset: ");
+                WriteBlue(newAssetName);
+                Write(" with replacement date: ");
+                WriteBlue(newExpirationDate.ToString("d"));
+                Write(" added to category: ");
+                WriteBlue(category.CategoryName);
+                Write(" and office: ");
+                WriteBlue(office.OfficeName);
+
+                Console.ReadKey();
+                AssetMenu();
+                return;
             }
+
+        }
+
+        private void PageUpdateAsset()
+        {
+            // stuff happening
+        }
+
+        private void PageDeleteAsset()
+        {
+            // Stuff happening
+            Header("Delete existing asset");
+            ShowAssets(1);
+
+            Write("Which asset do you want to delete (ID = 0 to abort): ");
+            int assetID;
+            try
+            {
+                assetID = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                AssetMenu();
+                return;
+            }
+            // User aborts deletion with ID = 0
+            if (assetID == 0)
+            {
+                AssetMenu();
+                return;
+            }
+
+            // Check if assetID exists in database
+            var asset = _context.Assets.Find(assetID);
+            if (asset == null)
+            {
+                Write("That asset does not exist...");
+                Console.ReadKey();
+                AssetMenu();
+                return;
+            }
+            else
+            {
+                _context.Assets.Remove(asset);
+                _context.SaveChanges();
+
+                Write("Asset: " + asset.AssetName + " deleted...");
+                Console.ReadKey();
+            }
+            AssetMenu();
 
         }
 
@@ -275,12 +431,13 @@ namespace EFAssets
         {
             if (displayHeader == 1)
                 WriteLine("Existing assets:");
-            WriteLine("id".PadRight(5) + "Name".PadRight(20) + "Country".PadRight(20) + "Currency".PadRight(10));
+            WriteLine("id".PadRight(5) + "Name".PadRight(25) + "Purchase price USD".PadRight(20) + "Purchase date".PadRight(15) + "Replacement date".PadRight(20));
             foreach (var x in _context.Assets)
             {
 
-                WriteLineBlue(x.AssetId.ToString().PadRight(5) + x.AssetName.ToString().PadRight(25) + x.AssetPrice.ToString().PadRight(20));
+                WriteLineBlue(x.AssetId.ToString().PadRight(5) + x.AssetName.ToString().PadRight(25) + x.AssetPrice.ToString().PadRight(20) + x.AssetPurchaseDate.ToString("d").PadRight(15) + x.AssetExpirationDate.ToString("d").PadRight(20));
             }
+
         }
 
         /// <summary>
@@ -586,6 +743,7 @@ namespace EFAssets
             if(office == null)
             {
                 Write("That office does not exist...");
+                Console.ReadKey();
                 OfficeMenu();
                 return;
             }
@@ -811,6 +969,12 @@ namespace EFAssets
         private void Write(string text)
         {
             Console.ForegroundColor = ConsoleColor.White;
+            Console.Write(text);
+        }
+
+        private void WriteBlue(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write(text);
         }
     }
