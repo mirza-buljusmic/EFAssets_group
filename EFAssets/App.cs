@@ -48,6 +48,14 @@ namespace EFAssets
                 case ConsoleKey.E:
                     ReportMenu();
                     break;
+
+                case ConsoleKey.F12:
+                    var egg = new EasterEgg1();
+                    Console.Clear();
+                    egg.ShowEasterEgg();
+                    Console.ReadKey();
+                    MainMenu();
+                    break;
                
                 case ConsoleKey.Q:
                     break;
@@ -237,20 +245,49 @@ namespace EFAssets
             Header("Reports");
 
             Console.WriteLine("What do you want to do");
-            Console.WriteLine("a) Show categories");
-            Console.WriteLine("b) Show all assets");
-            Console.WriteLine("c) Show assets due to be replaced");
+            Console.WriteLine("a) Show report 1");
+            Console.WriteLine("b) Show report 2");
+            Console.WriteLine("c) Show report 3");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
 
-            if (command == ConsoleKey.Enter)
-                ReportMenu();
+            // Using switch eliminates all other keypresses as invalid
+            switch (command)
+            {
+                case ConsoleKey.A:
+                    WriteBlue("Report 1 placeholder");
+                    Console.ReadKey();
+                    ReportMenu();
+                    break;
+                case ConsoleKey.B:
+                    WriteBlue("Report 2 placeholder");
+                    Console.ReadKey();
+                    ReportMenu();
+                    break;
+                case ConsoleKey.C:
+                    WriteBlue("Report 3 placeholder");
+                    Console.ReadKey();
+                    ReportMenu(); ;
+                    break;
+                
 
-            if (command == ConsoleKey.Q)
-                MainMenu();
+                case ConsoleKey.Q:
+                    MainMenu();
+                    break;
+
+                default:
+                    ReportMenu();
+                    break;
+            }
         }
 
+        /// <summary>
+        /// Add new asset to database
+        /// Connects to Category and Office
+        /// Calculates Replacement date based on Life span from Category
+        /// Calculates a Warning date (3 months before Replacemant date)
+        /// </summary>
         private void PageAddNewAsset()
         {
             // Date calculations
@@ -275,7 +312,7 @@ namespace EFAssets
 
                 var newAsset = new Asset();
 
-                Write("Asset name: ");
+                Write("\nAsset name: ");
                 string newAssetName = Console.ReadLine();
 
                 Write("Purchase date (yyyy-mm-dd): ");
@@ -375,11 +412,161 @@ namespace EFAssets
 
         }
 
+        /// <summary>
+        /// Updates an asset
+        /// If purchase date changed, then recalculates new End Of Life date and Warning Date
+        /// </summary>
         private void PageUpdateAsset()
         {
-            // stuff happening
+            Header("Update existing asset");
+            ShowOffices(1);
+            ShowCategories(1);
+            ShowAssets(1);
+
+            Write("\nWhich asset would you like to update? (ID = 0 to abort): ");
+            int assetID;
+            try
+            {
+                assetID = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Numerical values only...");
+                Console.ReadKey();
+                AssetMenu();
+                return;
+            }
+
+            // User aborts operation
+            if (assetID == 0)
+            {
+                AssetMenu();
+                return;
+            }
+
+            // Check if selected asset exists in database
+            var asset = _context.Assets.Find(assetID);
+
+            // User input variables
+            string newName = "";
+            DateTime newPurchaseDate;
+            int newCategoryID;
+            int newOfficeID;
+            double newPurchasePrice;
+
+            if (asset == null)
+            {
+                Write("That asset does not exist...");
+                AssetMenu();
+                return;
+            }
+            else
+            {
+                WriteLine("Existing asset name: " + asset.AssetName);
+                Write("Enter new name (Enter to keep old name): ");
+                newName = Console.ReadLine();
+                if (newName == "")
+                    newName = asset.AssetName;
+
+                WriteLine("Existing purchase date: " + asset.AssetPurchaseDate.ToString("d"));
+                Write("Enter new purchase date (yyyy-mm-dd): ");
+                try
+                {
+                    newPurchaseDate = DateTime.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    Write("Invalid date format. Must be like yyyy-mm-dd...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                WriteLine("Existing purchase price: " + asset.AssetPrice);
+                Write("Enter new purchase price: ");
+                try
+                {
+                    newPurchasePrice = double.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    Write("Numerical values only...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                WriteLine("Existing category ID: " + asset.CategoryId);
+                Write("Enter new category ID: ");
+                try
+                {
+                    newCategoryID = int.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    Write("Numerical values only...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                // Check if valid category selected
+                var category = _context.Category.Find(newCategoryID);
+                if(category == null)
+                {
+                    Write("That category does not exist...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                WriteLine("Existing office ID: " + asset.OfficeId);
+                Write("Enter new office ID: ");
+                try
+                {
+                    newOfficeID = int.Parse(Console.ReadLine());
+                }
+                catch
+                {
+                    Write("Numerical values only...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+
+                var office = _context.Offices.Find(newOfficeID);
+                if(office == null)
+                {
+                    Write("That office does not exist...");
+                    Console.ReadKey();
+                    AssetMenu();
+                    return;
+                }
+                // Calculate ExpirationDate and a WarningDate
+                DateTime newExpirationDate = DateFunctions.CalculateEolDate(newPurchaseDate, category.CategoryEOLMonths);
+                DateTime newWarningDate = DateFunctions.CalculateWarningDate(newPurchaseDate, category.CategoryEOLMonths - 3);
+
+                // All done for update
+                asset.AssetName = newName;
+                asset.AssetPurchaseDate = newPurchaseDate;
+                asset.AssetPrice = newPurchasePrice;
+                asset.CategoryId = newCategoryID;
+                asset.OfficeId = newOfficeID;
+                asset.AssetExpirationDate = newExpirationDate;
+                asset.AssetWarningDate = newWarningDate;
+
+                _context.Assets.Update(asset);
+                _context.SaveChanges();
+
+                Write("Asset: " + asset.AssetName + "updated");
+                Console.ReadKey();
+                AssetMenu();
+            }
         }
 
+        /// <summary>
+        /// Deletes an asset from database
+        /// </summary>
         private void PageDeleteAsset()
         {
             // Stuff happening
@@ -427,6 +614,10 @@ namespace EFAssets
 
         }
 
+        /// <summary>
+        /// Shows basic asset info. parameter: int displayHeader if neader display is showed or not
+        /// </summary>
+        /// <param name="displayHeader"></param>
         private void ShowAssets(int displayHeader)
         {
             if (displayHeader == 1)
@@ -487,6 +678,9 @@ namespace EFAssets
             CategoryMenu();
         }
 
+        /// <summary>
+        /// Update Category with new info
+        /// </summary>
         private void PageUpdateCategory()
         {
             Header("Update existing category");
@@ -559,7 +753,6 @@ namespace EFAssets
             }
         }
 
-
         /// <summary>
         /// Deletes a category
         /// **Note: Categories will not be deleted if any assets are attached to it...
@@ -626,6 +819,10 @@ namespace EFAssets
 
         }
 
+        /// <summary>
+        /// Displays basic Category info
+        /// </summary>
+        /// <param name="displayHeader"></param>
         private void ShowCategories(int displayHeader)
         {
             // If category table empty, don't bother trying to read from db
@@ -649,6 +846,10 @@ namespace EFAssets
             }
         }
 
+        /// <summary>
+        /// Adds a new regonal office.
+        /// Must have currencies in the database, since an office must have a currency
+        /// </summary>
         private void PageAddNewOffice()
         {
             Header("Add new office");
