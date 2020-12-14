@@ -48,11 +48,18 @@ namespace EFAssets
                 case ConsoleKey.E:
                     ReportMenu();
                     break;
-
-                case ConsoleKey.F12:
+                case ConsoleKey.Z:
                     var egg = new EasterEgg1();
                     Console.Clear();
                     egg.ShowEasterEgg();
+                    Console.ReadKey();
+                    MainMenu();
+                    break;
+
+                case ConsoleKey.F12:
+                    var egg1 = new EasterEgg1();
+                    Console.Clear();
+                    egg1.ShowEasterEgg();
                     Console.ReadKey();
                     MainMenu();
                     break;
@@ -628,7 +635,7 @@ namespace EFAssets
             foreach (var x in _context.Assets)
             {
 
-                WriteLineBlue(x.AssetId.ToString().PadRight(5) + x.AssetName.ToString().PadRight(25) + x.AssetPrice.ToString().PadRight(20) + x.AssetPurchaseDate.ToString("d").PadRight(15) + x.AssetExpirationDate.ToString("d").PadRight(20));
+                WriteLineBlue(x.AssetId.ToString().PadRight(5) + x.AssetName.ToString().PadRight(25) + x.AssetPrice.ToString("F").PadRight(20) + x.AssetPurchaseDate.ToString("d").PadRight(15) + x.AssetExpirationDate.ToString("d").PadRight(20));
             }
 
         }
