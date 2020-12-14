@@ -254,7 +254,7 @@ namespace EFAssets
             Console.WriteLine("What do you want to do");
             Console.WriteLine("a) Assets per office");
             Console.WriteLine("b) Cost of replacing expiring assets");
-            Console.WriteLine("c) Show report 3");
+            Console.WriteLine("c) Asset replacement cost per office & category");
             Console.WriteLine("\nq) Return to Main menu");
 
             ConsoleKey command = Console.ReadKey(true).Key;
@@ -264,20 +264,12 @@ namespace EFAssets
             {
                 case ConsoleKey.A:
                     ReportAssetsPerOffice();
-                    //WriteBlue("Report 1 placeholder");
-                    //Console.ReadKey();
-                    //ReportMenu();
                     break;
                 case ConsoleKey.B:
                     ReportAssetsCosts();
-                    //WriteBlue("Report 2 placeholder");
-                    //Console.ReadKey();
-                    //ReportMenu();
                     break;
                 case ConsoleKey.C:
-                    WriteBlue("Report 3 placeholder");
-                    Console.ReadKey();
-                    ReportMenu(); ;
+                    ReportSelectOfficeCategory();
                     break;
                 
 
@@ -1279,6 +1271,150 @@ namespace EFAssets
             ReportMenu();
         }
 
+        /// <summary>
+        /// Report on costs of replacing assets
+        /// user selects which office, and/or category
+        /// </summary>
+        private void ReportSelectOfficeCategory()
+        {
+            Header("Cost of replacing expiring assets");
+            DateTime today = DateTime.Now;
+            int date_dif;
+            ShowOffices(1);
+            ShowCategories(1);
+
+            Write("\nWhich office would you like to see: ");
+            int selectOffice = 0;
+            try
+            {
+                selectOffice = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                ReportMenu();
+                return;
+            }
+            //check if selected office exists
+            var officex = _context.Offices.Find(selectOffice);
+            if (officex == null)
+            {
+                Write("That office does not exist...");
+                ReportMenu();
+                return;
+            }
+
+            // User selects category
+            Write("Which category do you want to see (0 = All): ");
+            int selectCategory;
+            try
+            {
+                selectCategory = int.Parse(Console.ReadLine());
+            }
+            catch
+            {
+                Write("Only numerical values...");
+                Console.ReadKey();
+                ReportMenu();
+                return;
+            }
+            if (selectCategory != 0)
+            {
+                //check if selected category exists
+                var categoryx = _context.Category.Find(selectCategory);
+                if (categoryx == null)
+                {
+                    Write("That category does not exist...");
+                    Console.ReadKey();
+                    ReportMenu();
+                    return;
+                }
+            }
+
+            var office = _context.Offices.ToList();
+            var category = _context.Category.ToList();
+            var asset = _context.Assets.ToList();
+            var cur = _context.Currency.ToList();
+                Header("Replacement costs for office: " + officex.OfficeName);
+            
+            foreach (var ofc in office)
+            {
+                if (ofc.OfficeId == selectOffice)
+                {
+                    double sumOfExpenses = 0;
+                    double totalOfficeExpenses = 0;
+                    // Get currency and exchange rate
+                    var currency = _context.Currency.Find(ofc.CurrencyId);
+                    double exchangeRate = currency.CurrencyToUSD;
+
+                    WriteLine(ofc.OfficeName + ", " + ofc.OfficeCountry);
+                    WriteLine("\t\tName".PadRight(25) + "Purchased".PadRight(15) + "Expires".PadRight(15) + "Replace date".PadRight(15));
+                    foreach (var cat in category)
+                    {
+                        if (selectCategory == 0)
+                        {
+                            WriteLineBlue("\t" + cat.CategoryName);
+                            foreach (var a in asset)
+                            {
+                                double localValue = 0;
+                                if (a.OfficeId == ofc.OfficeId && a.CategoryId == cat.CategoryId)
+                                {
+                                    date_dif = DateFunctions.GetMonthDifference(today, a.AssetExpirationDate);
+                                    if (date_dif <= 3 || a.AssetExpirationDate < today)
+                                    {
+                                        // Convert to local currency and summarize costs
+                                        localValue = a.AssetPrice / exchangeRate;
+                                        sumOfExpenses += localValue;
+                                        WriteLineBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + localValue.ToString("F").PadRight(15) + currency.CurrencyName.ToString().PadRight(5));
+
+                                    }
+
+                                }
+                            }
+                            WriteLineBlue("Total replacement expenses for: " + cat.CategoryName.ToString() + " " + currency.CurrencyName + " " + sumOfExpenses.ToString("F"));
+                            totalOfficeExpenses += sumOfExpenses;
+                            sumOfExpenses = 0;
+                        }
+                        else
+                        {
+                            if(cat.CategoryId == selectCategory)
+                            {
+                                WriteLineBlue("\t" + cat.CategoryName);
+                                foreach (var a in asset)
+                                {
+                                    double localValue = 0;
+                                    if (a.OfficeId == ofc.OfficeId && a.CategoryId == cat.CategoryId)
+                                    {
+                                        date_dif = DateFunctions.GetMonthDifference(today, a.AssetExpirationDate);
+                                        if (date_dif <= 3 || a.AssetExpirationDate < today)
+                                        {
+                                            // Convert to local currency and summarize costs
+                                            localValue = a.AssetPrice / exchangeRate;
+                                            sumOfExpenses += localValue;
+                                            WriteLineBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + localValue.ToString("F").PadRight(15) + currency.CurrencyName.ToString().PadRight(5));
+
+                                        }
+
+                                    }
+                                }
+                                //WriteLineBlue("Total replacement expenses for: " + cat.CategoryName.ToString() + " " + currency.CurrencyName + " " + sumOfExpenses.ToString("F"));
+                                totalOfficeExpenses += sumOfExpenses;
+                                sumOfExpenses = 0;
+                            }
+                        }
+
+                    }
+                    WriteLineYellow("Total replacement expenses for office: " + ofc.OfficeName.ToString() + " are: " + currency.CurrencyName + " " + totalOfficeExpenses.ToString("F"));
+                    totalOfficeExpenses = 0;
+                    sumOfExpenses = 0;
+                }
+                
+            }
+            Console.ReadKey();
+            ReportMenu();
+        }
+
         private void Header(string text)
         {
             Console.Clear();
@@ -1305,11 +1441,13 @@ namespace EFAssets
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine(text);
         }
+
         private void WriteLineYellow(string text)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(text);
         }
+
         private void Write(string text)
         {
             Console.ForegroundColor = ConsoleColor.White;
