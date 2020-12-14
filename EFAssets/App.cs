@@ -245,8 +245,8 @@ namespace EFAssets
             Header("Reports");
 
             Console.WriteLine("What do you want to do");
-            Console.WriteLine("a) Show report 1");
-            Console.WriteLine("b) Show report 2");
+            Console.WriteLine("a) Assets per office");
+            Console.WriteLine("b) Cost of replacing expiring assets");
             Console.WriteLine("c) Show report 3");
             Console.WriteLine("\nq) Return to Main menu");
 
@@ -256,14 +256,16 @@ namespace EFAssets
             switch (command)
             {
                 case ConsoleKey.A:
-                    WriteBlue("Report 1 placeholder");
-                    Console.ReadKey();
-                    ReportMenu();
+                    ReportAssetsPerOffice();
+                    //WriteBlue("Report 1 placeholder");
+                    //Console.ReadKey();
+                    //ReportMenu();
                     break;
                 case ConsoleKey.B:
-                    WriteBlue("Report 2 placeholder");
-                    Console.ReadKey();
-                    ReportMenu();
+                    ReportAssetsCosts();
+                    //WriteBlue("Report 2 placeholder");
+                    //Console.ReadKey();
+                    //ReportMenu();
                     break;
                 case ConsoleKey.C:
                     WriteBlue("Report 3 placeholder");
@@ -736,18 +738,38 @@ namespace EFAssets
                     return;
                 }
 
-                // ** Should implement functionality here to check if LifeSpan is changed
-                // ** and calculate new endOfLife for attached assets
-
-
+                // Save Old EOL-months for comparing with new
+                int oldLifespan = category.CategoryEOLMonths;
+                
                 // All done load user input for update to database
                 category.CategoryName = newName;
                 category.CategoryEOLMonths = newLifespan;
 
                 _context.Category.Update(category);
                 _context.SaveChanges();
+                
 
-                Write("Category is updaed...");
+                // If LifeSpan for category has changed, recalculate new EOL dates and warning dates 
+                // for all assets in that category.
+                if (oldLifespan != newLifespan)
+                {
+                    var asset = _context.Assets.ToList();
+                    foreach (var x  in asset)
+                    {
+                        if (x.CategoryId == categoryID)
+                        {
+                            // Recalculate ExpirationDate and a WarningDate
+                            DateTime newExpirationDate = DateFunctions.CalculateEolDate(x.AssetPurchaseDate, newLifespan);
+                            DateTime newWarningDate = DateFunctions.CalculateWarningDate(x.AssetPurchaseDate, newLifespan - 3);
+
+                            x.AssetExpirationDate = newExpirationDate;
+                            x.AssetWarningDate = newWarningDate;
+                            _context.Assets.Update(x);
+                            _context.SaveChanges();
+                        }
+                    }
+                }
+                Write("Category is updated...");
                 Console.ReadKey();
                 CategoryMenu();
             }
@@ -1141,6 +1163,115 @@ namespace EFAssets
             }
         }
 
+        /// <summary>
+        /// Simple list of assets by offices and categories
+        /// color codes assets yellow 6 months before exp date
+        /// and red 3 months before exp date
+        /// </summary>
+        private void ReportAssetsPerOffice()
+        {
+            Header("Assets per office");
+
+            DateTime today = DateTime.Now;
+            int date_dif;
+
+            var office = _context.Offices.ToList();
+            var category = _context.Category.ToList();
+            var asset = _context.Assets.ToList();
+            var cur = _context.Currency.ToList();
+
+            foreach(var ofc in office)
+            {
+                WriteLine(ofc.OfficeName + ", " + ofc.OfficeCountry);
+                WriteLine("\t\tName".PadRight(25) + "Purchased".PadRight(15) + "Expires".PadRight(15) + "Replace date".PadRight(15));
+                foreach (var cat in category)
+                {
+                    WriteLineBlue("\t" + cat.CategoryName);
+                    foreach (var a in asset)
+                    {
+                        if (a.OfficeId == ofc.OfficeId && a.CategoryId == cat.CategoryId)
+                        {
+                            date_dif = DateFunctions.GetMonthDifference(today, a.AssetExpirationDate);
+                            if(date_dif <= 3 || a.AssetExpirationDate < today)
+                            {
+                                //WriteBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15));
+                                
+                                WriteLineRed("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + a.AssetWarningDate.ToString("d").PadRight(15));
+
+                            }
+                            else if(date_dif <= 6)
+                            {
+                                //WriteBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15));
+                                WriteLineYellow("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + a.AssetWarningDate.ToString("d").PadRight(15));
+                            }
+                            else
+                                WriteLineBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + a.AssetWarningDate.ToString("d").PadRight(15));
+                        }
+                    }
+                }
+            }
+            Console.ReadKey();
+            ReportMenu();
+        }
+
+        /// <summary>
+        /// Report on costs of replacing expiring assets
+        /// per office and category in local currency
+        /// </summary>
+        private void ReportAssetsCosts()
+        {
+            Header("Cost of replacing expiring assets");
+            DateTime today = DateTime.Now;
+            int date_dif;
+
+
+            var office = _context.Offices.ToList();
+            var category = _context.Category.ToList();
+            var asset = _context.Assets.ToList();
+            var cur = _context.Currency.ToList();
+
+            foreach (var ofc in office)
+            {
+                double sumOfExpenses = 0;
+                double totalOfficeExpenses = 0;
+                // Get currency and exchange rate
+                var currency = _context.Currency.Find(ofc.CurrencyId);
+                double exchangeRate = currency.CurrencyToUSD;
+
+                WriteLine(ofc.OfficeName + ", " + ofc.OfficeCountry);
+                WriteLine("\t\tName".PadRight(25) + "Purchased".PadRight(15) + "Expires".PadRight(15) + "Replace date".PadRight(15));
+                foreach (var cat in category)
+                {
+                    WriteLineBlue("\t" + cat.CategoryName);
+                    foreach (var a in asset)
+                    {
+                        double localValue = 0;
+                        if (a.OfficeId == ofc.OfficeId && a.CategoryId == cat.CategoryId)
+                        {
+                            date_dif = DateFunctions.GetMonthDifference(today, a.AssetExpirationDate);
+                            if (date_dif <= 3 || a.AssetExpirationDate < today)
+                            {
+                                // Convert to local currency and summarize costs
+                                localValue = a.AssetPrice / exchangeRate;
+                                sumOfExpenses += localValue;
+                                WriteLineBlue("\t\t" + a.AssetName.ToString().PadRight(25) + a.AssetPurchaseDate.ToString("d").PadRight(15) + a.AssetExpirationDate.ToString("d").PadRight(15) + localValue.ToString("F").PadRight(15) + currency.CurrencyName.ToString().PadRight(5));
+
+                            }
+                            
+                        }
+                    }
+                    WriteLineBlue("Total replacement expenses for: " + cat.CategoryName.ToString() + " " + currency.CurrencyName + " " + sumOfExpenses.ToString("F"));
+                    totalOfficeExpenses += sumOfExpenses;
+                    sumOfExpenses = 0;
+                }
+                WriteLineYellow("Total replacement expenses for office: " + ofc.OfficeName.ToString() + " are: " + currency.CurrencyName + " " + totalOfficeExpenses.ToString("F"));
+                totalOfficeExpenses = 0;
+                sumOfExpenses = 0;
+            }
+            Console.ReadKey();
+            ReportMenu();
+        }
+
         private void Header(string text)
         {
             Console.Clear();
@@ -1167,6 +1298,11 @@ namespace EFAssets
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine(text);
         }
+        private void WriteLineYellow(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine(text);
+        }
         private void Write(string text)
         {
             Console.ForegroundColor = ConsoleColor.White;
@@ -1176,6 +1312,18 @@ namespace EFAssets
         private void WriteBlue(string text)
         {
             Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(text);
+        }
+
+        private void WriteRed(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.Write(text);
+        }
+
+        private void WriteYellow(string text)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Write(text);
         }
     }
